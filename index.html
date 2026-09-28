@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuSu Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1C2340; --paper:#F3F5F8; --panel:#FFFFFF; --line:#D9DDE6;
+    --gold:#D4A017; --gold-soft:#FBF1D3; --green:#2E7D5B; --green-soft:#DCEFE5;
+    --brick:#B5443A; --brick-soft:#F6E1DE; --slate:#6B7390;
+    --font:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --ink:#E8EBF5; --paper:#141A2E; --panel:#1D2440; --line:#323B5C;
+      --gold-soft:#3A3217; --green-soft:#17362A; --brick-soft:#3D1F1C; --slate:#9AA2C0; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.45}
+  .wrap{max-width:960px;margin:0 auto;padding:20px 16px 64px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+  header h1{font-size:18px;font-weight:600;margin:0}
+  button{font:inherit;cursor:pointer}
+  button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  .btn{border:1.5px solid var(--ink);background:transparent;color:var(--ink);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600}
+  .btn.solid{background:var(--ink);color:var(--paper)}
+  .admin-on{background:var(--gold);border-color:var(--gold);color:#1C2340}
+
+  .hero{margin:6px 0 20px}
+  .hero p{margin:0;color:var(--slate);font-size:15px}
+  .hero h2{margin:4px 0 0;font-size:clamp(28px,6vw,46px);font-weight:800;line-height:1.08;letter-spacing:-.02em;max-width:18ch}
+
+  .ring{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 14px;scroll-snap-type:x proximity}
+  .turn{flex:0 0 112px;scroll-snap-align:start;border-radius:14px;padding:10px 12px;background:var(--panel);border:1.5px solid var(--line)}
+  .turn .wk{font-size:12px;color:var(--slate)}
+  .turn .who{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .turn .when{font-size:12px;color:var(--slate)}
+  .turn.past{opacity:.55}
+  .turn.now{background:var(--gold);border-color:var(--gold);color:#1C2340;transform:translateY(-3px)}
+  .turn.now .wk,.turn.now .when{color:#1C2340}
+  .turn.round2{border-style:dashed}
+
+  nav{display:flex;gap:4px;border-bottom:1.5px solid var(--line);margin:18px 0 16px;overflow-x:auto}
+  nav button{border:0;background:none;color:var(--slate);padding:10px 12px;font-weight:600;border-bottom:3px solid transparent;margin-bottom:-1.5px}
+  nav button[aria-selected="true"]{color:var(--ink);border-color:var(--ink)}
+
+  .panel{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:16px}
+  .grid2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  .stat b{display:block;font-size:24px;font-weight:800}
+  .stat span{color:var(--slate);font-size:14px}
+  select,input{font:inherit;color:var(--ink);background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:8px 10px}
+  h3{font-size:17px;margin:0 0 10px}
+  .muted{color:var(--slate);font-size:14px}
+  .pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:13px;font-weight:600}
+  .pill.ok{background:var(--green-soft);color:var(--green)}
+  .pill.due{background:var(--brick-soft);color:var(--brick)}
+  .pill.wait{background:var(--gold-soft);color:var(--ink)}
+
+  .scroll{overflow-x:auto;border:1.5px solid var(--line);border-radius:14px;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  th{font-weight:600;color:var(--slate);font-size:13px}
+  .pay th:first-child,.pay td:first-child{position:sticky;left:0;background:var(--panel);z-index:1;font-weight:600}
+  .pay td.c{padding:4px;text-align:center}
+  .cell{width:34px;height:30px;border-radius:8px;border:1.5px solid var(--line);background:transparent;display:inline-grid;place-items:center;font-weight:800;color:var(--green)}
+  .cell.paid{background:var(--green-soft);border-color:var(--green)}
+  .cell.late{border-color:var(--brick);background:var(--brick-soft)}
+  .cell:disabled{cursor:default}
+  .pay th.now{color:var(--ink);background:var(--gold-soft)}
+  .pay td.now{background:var(--gold-soft)}
+  .check{width:22px;height:22px;accent-color:var(--green)}
+
+  .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:12px;font-size:14px;display:none;max-width:90vw}
+  .toast.err{background:var(--brick);color:#fff}
+  dialog{border:0;border-radius:16px;padding:20px;background:var(--panel);color:var(--ink);max-width:320px;width:90vw}
+  dialog::backdrop{background:rgba(20,26,46,.5)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .loading{padding:40px 0;color:var(--slate)}
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important} .turn.now{transform:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>SuSu Tracker</h1>
+    <button class="btn" id="adminBtn" type="button">Unlock editing</button>
+  </header>
+  <div id="app"><p class="loading">Loading the tracker…</p></div>
+</div>
+
+<dialog id="pinDlg">
+  <form method="dialog" id="pinForm">
+    <h3>Unlock editing</h3>
+    <p class="muted">Enter the admin PIN to mark payments and payouts.</p>
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" style="width:100%;margin:8px 0 14px" aria-label="Admin PIN">
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" value="cancel" type="button" id="pinCancel">Cancel</button>
+      <button class="btn solid" type="submit">Unlock</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* Your Apps Script /exec link. If you ever make a NEW deployment, paste its link here. */
+const API = 'https://script.google.com/macros/s/AKfycbw2nPPMQWLzNtgFciSrKhZGBFu28hlKR9H2ayTC91CqBmdLWaOtH0-rFtB-FqcPSdYt/exec';
+
+const S = { data:null, pin:null, tab:'overview', me:'', busy:false };
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const parseDate = s => { const d = new Date(s); return isNaN(d) ? null : d; };
+const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+const fmtShort = s => { const d = parseDate(s); return d ? d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : s; };
+
+function toast(msg, err){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); t.style.display = 'block';
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = 'none', 3200);
+}
+
+/* Talks to Apps Script over plain web requests — no Google sign-in involved. */
+async function call(fn, ...args){
+  let res;
+  try {
+    res = fn === 'getData'
+      ? await fetch(API)
+      : await fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // keeps the request simple so Google accepts it
+          body: JSON.stringify({ fn, args })
+        });
+  } catch (e) { throw new Error('No connection. Check your internet and try again.'); }
+  let j;
+  try { j = await res.json(); } catch (e) { throw new Error('The tracker sent back an unexpected response.'); }
+  if (!j.ok) throw new Error(j.error || 'Something went wrong.');
+  return j.data;
+}
+
+async function load(){
+  try { S.data = await call('getData'); render(); }
+  catch(e){ document.getElementById('app').innerHTML = '<p class="loading">Couldn\'t load the sheet: ' + esc(e.message) + '</p>'; }
+}
+
+function currentWeek(){
+  const t = today(); let idx = -1;
+  S.data.schedule.forEach((r,i) => { const d = parseDate(r.date); if (d && d <= t) idx = i; });
+  return idx;
+}
+
+function render(){
+  const d = S.data, cw = currentWeek();
+  const nowRow = d.schedule[Math.max(cw,0)];
+  const started = cw >= 0;
+  const heroLine = started
+    ? `Week ${esc(nowRow.week)} of ${esc(d.settings.totalWeeks)}, round ${esc(nowRow.round)}`
+    : `Starts ${esc(fmtShort(d.settings.startDate))}`;
+  const heroHead = started
+    ? `${esc(nowRow.recipient)} collects ${esc(nowRow.amount)} this week.`
+    : `${esc(nowRow.recipient)} collects the first ${esc(nowRow.amount)} pot.`;
+
+  const ring = d.schedule.map((r,i) => {
+    const cls = ['turn', i < cw ? 'past' : '', i === Math.max(cw,0) ? 'now' : '', r.round == 2 ? 'round2' : ''].join(' ');
+    return `<div class="${cls}" ${i===Math.max(cw,0)?'id="nowTurn"':''}>
+      <div class="wk">Week ${esc(r.week)}${r.received ? ' ✓' : ''}</div>
+      <div class="who" title="${esc(r.recipient)}">${esc(r.recipient)}</div>
+      <div class="when">${esc(fmtShort(r.date))}</div></div>`;
+  }).join('');
+
+  const tabs = [['overview','Overview'],['payments','Payments'],['payouts','Payouts'],['hands','Hands']];
+  document.getElementById('app').innerHTML = `
+    <section class="hero"><p>${heroLine}</p><h2>${heroHead}</h2></section>
+    <div class="ring" aria-label="Payout rotation">${ring}</div>
+    <nav role="tablist">${tabs.map(([k,l]) => `<button role="tab" aria-selected="${S.tab===k}" data-tab="${k}">${l}</button>`).join('')}</nav>
+    <div id="view">${views[S.tab](cw)}</div>`;
+
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
+  const nt = document.getElementById('nowTurn'); if (nt) nt.scrollIntoView({inline:'center', block:'nearest'});
+  bind();
+}
+
+const views = {
+  overview(cw){
+    const d = S.data, s = d.settings, tot = d.tracker.totals;
+    const wk = Math.max(cw,0);
+    const weekCollected = tot ? tot.weeks[wk] : '';
+    const names = d.tracker.rows.map(r => r.name);
+    return `
+      <div class="grid2" style="margin-bottom:12px">
+        <div class="panel stat"><b>${esc(s.pot)}</b><span>weekly pot from ${esc(s.hands)} hands at ${esc(s.contribution)}</span></div>
+        <div class="panel stat"><b>${esc(weekCollected || '$0')}</b><span>collected for week ${wk+1}</span></div>
+        <div class="panel stat"><b>${esc(tot ? tot.paid : '')}</b><span>paid in so far, of ${esc(tot ? tot.owed : '')}</span></div>
+      </div>
+      <div class="panel">
+        <h3>Find your hand</h3>
+        <select id="meSel" aria-label="Your hand">
+          <option value="">Choose a name</option>
+          ${names.map(n => `<option ${S.me===n?'selected':''}>${esc(n)}</option>`).join('')}
+        </select>
+        <div id="meBox" style="margin-top:14px">${S.me ? myHand(S.me, cw) : '<p class="muted">Pick your name to see your balance and payout dates.</p>'}</div>
+      </div>`;
+  },
+
+  payments(cw){
+    const t = S.data.tracker, admin = !!S.pin;
+    const head = t.dates.map((dt,i) => `<th class="${i===cw?'now':''}">Wk ${i+1}<br><span style="font-weight:400">${esc(dt)}</span></th>`).join('');
+    const body = t.rows.map(r => `<tr><td>${esc(r.name)}</td>${
+      r.cells.map((v,i) => {
+        const paid = String(v).trim() !== '';
+        const late = !paid && i <= cw;
+        const label = `${r.name}, week ${i+1}: ${paid ? 'paid' : late ? 'not paid' : 'upcoming'}`;
+        return `<td class="c ${i===cw?'now':''}"><button class="cell ${paid?'paid':''} ${late?'late':''}" ${admin?'':'disabled'}
+          data-pay="${r.row}" data-wk="${i}" aria-label="${esc(label)}">${paid?'✓':''}</button></td>`;
+      }).join('')
+    }<td>${esc(r.paid)}</td><td>${esc(r.balance)}</td></tr>`).join('');
+    return `<p class="muted">${admin ? 'Tap a box to mark a payment. Tap again to undo.' : 'Green is paid. Red is a past week that hasn’t been paid yet.'}</p>
+      <div class="scroll"><table class="pay"><thead><tr><th>Hand</th>${head}<th>Paid</th><th>Balance</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  },
+
+  payouts(cw){
+    const admin = !!S.pin;
+    const rows = S.data.schedule.map((r,i) => `<tr>
+      <td>${esc(r.week)}</td><td>${esc(r.round)}</td><td>${esc(r.date)}</td><td><strong>${esc(r.recipient)}</strong></td><td>${esc(r.amount)}</td>
+      <td>${admin
+        ? `<input type="checkbox" class="check" data-payout="${r.row}" ${r.received?'checked':''} aria-label="Mark week ${esc(r.week)} payout received">`
+        : r.received ? '<span class="pill ok">Received</span>' : i <= cw ? '<span class="pill due">Pending</span>' : '<span class="pill wait">Upcoming</span>'}</td></tr>`).join('');
+    return `<div class="scroll"><table><thead><tr><th>Week</th><th>Round</th><th>Date</th><th>Recipient</th><th>Amount</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  },
+
+  hands(){
+    const h = S.data.hands, admin = !!S.pin;
+    if (!admin) {
+      return `<div class="scroll"><table><thead><tr><th>Hand</th><th>Pinned order</th><th>Draw letter</th></tr></thead><tbody>${
+        h.rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.order) || '<span class="muted">Random</span>'}</td><td>${esc(r.letter)}</td></tr>`).join('')
+      }</tbody></table></div>`;
+    }
+    return `<div class="panel">
+      <p class="muted" style="margin-top:0">One row per hand. Leave the order blank to randomize. Changing the seed reshuffles only the blank ones.</p>
+      <div class="scroll" style="border:0"><table><thead><tr><th>Hand name</th><th>Pinned order</th><th>Letter</th></tr></thead><tbody>${
+        h.rows.map(r => `<tr><td><input data-hname="${r.row}" value="${esc(r.name)}" aria-label="Hand name"></td>
+          <td><input data-horder="${r.row}" value="${esc(r.order)}" inputmode="numeric" style="width:70px" aria-label="Pinned order"></td>
+          <td>${esc(r.letter)}</td></tr>`).join('')
+      }</tbody></table></div>
+      <div class="row" style="margin-top:12px">
+        <label>Shuffle seed <input id="seedIn" value="${esc(h.seed)}" inputmode="numeric" style="width:90px"></label>
+        <button class="btn solid" id="saveHands" type="button">Save hands</button>
+      </div></div>`;
+  }
+};
+
+function myHand(name, cw){
+  const d = S.data;
+  const r = d.tracker.rows.find(x => x.name === name); if (!r) return '';
+  const missed = r.cells.filter((v,i) => i <= cw && String(v).trim()==='').length;
+  const payouts = d.schedule.filter(p => p.recipient === name);
+  return `<div class="grid2">
+      <div class="stat"><b>${esc(r.balance)}</b><span>left to pay of ${esc(r.owed)}</span></div>
+      <div class="stat"><b>${missed ? missed : 'All caught up'}</b><span>${missed ? 'week' + (missed>1?'s':'') + ' unpaid so far' : 'no missed weeks'}</span></div>
+    </div>
+    <h3 style="margin-top:16px">Your payouts</h3>
+    ${payouts.map(p => `<div class="row" style="justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)">
+      <span>Week ${esc(p.week)}, ${esc(fmtShort(p.date))}</span>
+      <span>${esc(p.amount)} ${p.received ? '<span class="pill ok">Received</span>' : '<span class="pill wait">Upcoming</span>'}</span></div>`).join('')}`;
+}
+
+async function write(fn, ...args){
+  if (S.busy) return; S.busy = true;
+  try { S.data = await call(fn, S.pin, ...args); render(); toast('Saved'); }
+  catch(e){ toast(e.message, true); if (/PIN/.test(e.message)) lockAdmin(); render(); }
+  finally { S.busy = false; }
+}
+
+function bind(){
+  const sel = document.getElementById('meSel');
+  if (sel) sel.onchange = () => { S.me = sel.value; document.getElementById('meBox').innerHTML = S.me ? myHand(S.me, currentWeek()) : ''; };
+  document.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => write('togglePayment', Number(b.dataset.pay), Number(b.dataset.wk)));
+  document.querySelectorAll('[data-payout]').forEach(c => c.onchange = () => write('togglePayout', Number(c.dataset.payout)));
+  const save = document.getElementById('saveHands');
+  if (save) save.onclick = () => {
+    const edits = [...document.querySelectorAll('[data-hname]')].map(i => ({
+      row: Number(i.dataset.hname), name: i.value,
+      order: document.querySelector(`[data-horder="${i.dataset.hname}"]`).value
+    }));
+    write('saveHands', edits, document.getElementById('seedIn').value);
+  };
+}
+
+const adminBtn = document.getElementById('adminBtn'), dlg = document.getElementById('pinDlg');
+function lockAdmin(){ S.pin = null; adminBtn.textContent = 'Unlock editing'; adminBtn.classList.remove('admin-on'); }
+adminBtn.onclick = () => {
+  if (S.pin) { lockAdmin(); render(); toast('Editing locked'); return; }
+  document.getElementById('pinInput').value = ''; dlg.showModal(); document.getElementById('pinInput').focus();
+};
+document.getElementById('pinCancel').onclick = () => dlg.close();
+document.getElementById('pinForm').onsubmit = async ev => {
+  ev.preventDefault();
+  const pin = document.getElementById('pinInput').value;
+  try { await call('verifyPin', pin); S.pin = pin; dlg.close();
+    adminBtn.textContent = 'Lock editing'; adminBtn.classList.add('admin-on'); render(); toast('Editing unlocked'); }
+  catch(e){ toast(e.message, true); }
+};
+
+load();
+</script>
+</body>
+</html>
