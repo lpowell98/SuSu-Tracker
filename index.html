@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SuSu Tracker</title>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
 <style>
@@ -138,9 +140,19 @@ async function call(fn, ...args){
   return j.data;
 }
 
+/* Repeat visits open instantly from this phone's last copy, then refresh from the sheet. */
+const LOCAL_KEY = 'susu:data';
+function saveLocal(){ try { localStorage.setItem(LOCAL_KEY, JSON.stringify(S.data)); } catch(e){} }
+
 async function load(){
-  try { S.data = await call('getData'); render(); }
-  catch(e){ document.getElementById('app').innerHTML = '<p class="loading">Couldn\'t load the sheet: ' + esc(e.message) + '</p>'; }
+  if (!S.data) {
+    try { const c = JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null'); if (c && c.schedule) { S.data = c; render(); } } catch(e){}
+  }
+  try { S.data = await call('getData'); saveLocal(); render(); }
+  catch(e){
+    if (S.data) toast('Couldn\'t refresh: ' + e.message, true);
+    else document.getElementById('app').innerHTML = '<p class="loading">Couldn\'t load the sheet: ' + esc(e.message) + '</p>';
+  }
 }
 
 function currentWeek(){
@@ -273,7 +285,7 @@ function myHand(name, cw){
 
 async function write(fn, ...args){
   if (S.busy) return; S.busy = true;
-  try { S.data = await call(fn, S.pin, ...args); render(); toast('Saved'); }
+  try { S.data = await call(fn, S.pin, ...args); saveLocal(); render(); toast('Saved'); }
   catch(e){ toast(e.message, true); if (/PIN/.test(e.message)) lockAdmin(); render(); }
   finally { S.busy = false; }
 }
@@ -287,7 +299,7 @@ async function runQueue(){
     const [fn, args] = queue.shift();
     try {
       const data = await call(fn, S.pin, ...args);
-      if (!queue.length) { S.data = data; render(); toast('Saved'); } // refresh totals once taps stop
+      if (!queue.length) { S.data = data; saveLocal(); render(); toast('Saved'); } // refresh totals once taps stop
     } catch (e) {
       queue.length = 0;
       toast(e.message + ' Reloaded the latest data.', true);
