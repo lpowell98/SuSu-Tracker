@@ -169,6 +169,7 @@ function render(){
   }).join('');
 
   const tabs = [['overview','Overview'],['payments','Payments'],['payouts','Payouts'],['hands','Hands']];
+  const keepScroll = [...document.querySelectorAll('.ring, .scroll')].map(el => el.scrollLeft);
   document.getElementById('app').innerHTML = `
     <section class="hero"><p>${heroLine}</p><h2>${heroHead}</h2></section>
     <div class="ring" aria-label="Payout rotation">${ring}</div>
@@ -176,7 +177,13 @@ function render(){
     <div id="view">${views[S.tab](cw)}</div>`;
 
   document.querySelectorAll('nav button').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
-  const nt = document.getElementById('nowTurn'); if (nt) nt.scrollIntoView({inline:'center', block:'nearest'});
+  document.querySelectorAll('.ring, .scroll').forEach((el,i) => { if (keepScroll[i] != null) el.scrollLeft = keepScroll[i]; });
+  const nt = document.getElementById('nowTurn');
+  if (nt && !S.centered) { // center this week's turn once, without jumping the page
+    const ring = nt.parentElement;
+    ring.scrollLeft = nt.offsetLeft - ring.offsetLeft - ring.clientWidth/2 + nt.clientWidth/2;
+    S.centered = true;
+  }
   bind();
 }
 
@@ -271,11 +278,41 @@ async function write(fn, ...args){
   finally { S.busy = false; }
 }
 
+/* Instant taps: the box flips right away, saves run in order in the background. */
+const queue = []; let saving = false;
+function enqueue(fn, ...args){ queue.push([fn, args]); toast('Saving…'); runQueue(); }
+async function runQueue(){
+  if (saving) return; saving = true;
+  while (queue.length) {
+    const [fn, args] = queue.shift();
+    try {
+      const data = await call(fn, S.pin, ...args);
+      if (!queue.length) { S.data = data; render(); toast('Saved'); } // refresh totals once taps stop
+    } catch (e) {
+      queue.length = 0;
+      toast(e.message + ' Reloaded the latest data.', true);
+      if (/PIN/.test(e.message)) lockAdmin();
+      await load();
+    }
+  }
+  saving = false;
+}
+
 function bind(){
   const sel = document.getElementById('meSel');
   if (sel) sel.onchange = () => { S.me = sel.value; document.getElementById('meBox').innerHTML = S.me ? myHand(S.me, currentWeek()) : ''; };
-  document.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => write('togglePayment', Number(b.dataset.pay), Number(b.dataset.wk)));
-  document.querySelectorAll('[data-payout]').forEach(c => c.onchange = () => write('togglePayout', Number(c.dataset.payout)));
+  document.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => {
+    const row = Number(b.dataset.pay), wk = Number(b.dataset.wk);
+    const r = S.data.tracker.rows.find(x => x.row === row);
+    r.cells[wk] = String(r.cells[wk]).trim() ? '' : (S.data.settings.contribution || '✓');
+    render(); enqueue('togglePayment', row, wk);
+  });
+  document.querySelectorAll('[data-payout]').forEach(c => c.onchange = () => {
+    const row = Number(c.dataset.payout);
+    const p = S.data.schedule.find(x => x.row === row);
+    p.received = !p.received;
+    render(); enqueue('togglePayout', row);
+  });
   const save = document.getElementById('saveHands');
   if (save) save.onclick = () => {
     const edits = [...document.querySelectorAll('[data-hname]')].map(i => ({
@@ -289,7 +326,10 @@ function bind(){
 const adminBtn = document.getElementById('adminBtn'), dlg = document.getElementById('pinDlg');
 function lockAdmin(){ S.pin = null; adminBtn.textContent = 'Unlock editing'; adminBtn.classList.remove('admin-on'); }
 adminBtn.onclick = () => {
-  if (S.pin) { lockAdmin(); render(); toast('Editing locked'); return; }
+  if (S.pin) {
+    if (saving || queue.length) { toast('Still saving, try again in a moment.'); return; }
+    lockAdmin(); render(); toast('Editing locked'); return;
+  }
   document.getElementById('pinInput').value = ''; dlg.showModal(); document.getElementById('pinInput').focus();
 };
 document.getElementById('pinCancel').onclick = () => dlg.close();
