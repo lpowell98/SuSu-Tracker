@@ -44,7 +44,9 @@
   .turn.now .wk,.turn.now .when{color:#1C2340}
   .turn.round2{border-style:dashed}
 
-  nav{display:flex;gap:4px;border-bottom:1.5px solid var(--line);margin:18px 0 16px;overflow-x:auto}
+  nav{display:flex;gap:4px;border-bottom:1.5px solid var(--line);margin:18px 0 16px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .ring,.scroll{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
   nav button{border:0;background:none;color:var(--slate);padding:10px 12px;font-weight:600;border-bottom:3px solid transparent;margin-bottom:-1.5px}
   nav button[aria-selected="true"]{color:var(--ink);border-color:var(--ink)}
 
@@ -155,16 +157,21 @@ async function load(){
   }
 }
 
+/* Current week = the next payout on or after today. Moves forward the day after each payout. */
 function currentWeek(){
-  const t = today(); let idx = -1;
-  S.data.schedule.forEach((r,i) => { const d = parseDate(r.date); if (d && d <= t) idx = i; });
-  return idx;
+  const t = today(), sch = S.data.schedule;
+  const idx = sch.findIndex(r => { const d = parseDate(r.date); return d && d >= t; });
+  return idx >= 0 ? idx : sch.length - 1; // after the last payout, stay on the last week
+}
+function hasStarted(){
+  const d = parseDate(S.data.settings.startDate) || parseDate((S.data.schedule[0] || {}).date);
+  return !d || today() >= new Date(d.getFullYear(), d.getMonth(), d.getDate() - 6); // the week leading into Week 1 counts
 }
 
 function render(){
   const d = S.data, cw = currentWeek();
   const nowRow = d.schedule[Math.max(cw,0)];
-  const started = cw >= 0;
+  const started = hasStarted();
   const heroLine = started
     ? `Week ${esc(nowRow.week)} of ${esc(d.settings.totalWeeks)}, round ${esc(nowRow.round)}`
     : `Starts ${esc(fmtShort(d.settings.startDate))}`;
@@ -227,7 +234,7 @@ const views = {
     const body = t.rows.map(r => `<tr><td>${esc(r.name)}</td>${
       r.cells.map((v,i) => {
         const paid = String(v).trim() !== '';
-        const late = !paid && i <= cw;
+        const late = !paid && i < cw;
         const label = `${r.name}, week ${i+1}: ${paid ? 'paid' : late ? 'not paid' : 'upcoming'}`;
         return `<td class="c ${i===cw?'now':''}"><button class="cell ${paid?'paid':''} ${late?'late':''}" ${admin?'':'disabled'}
           data-pay="${r.row}" data-wk="${i}" aria-label="${esc(label)}">${paid?'✓':''}</button></td>`;
@@ -243,7 +250,7 @@ const views = {
       <td>${esc(r.week)}</td><td>${esc(r.round)}</td><td>${esc(r.date)}</td><td><strong>${esc(r.recipient)}</strong></td><td>${esc(r.amount)}</td>
       <td>${admin
         ? `<input type="checkbox" class="check" data-payout="${r.row}" ${r.received?'checked':''} aria-label="Mark week ${esc(r.week)} payout received">`
-        : r.received ? '<span class="pill ok">Received</span>' : i <= cw ? '<span class="pill due">Pending</span>' : '<span class="pill wait">Upcoming</span>'}</td></tr>`).join('');
+        : r.received ? '<span class="pill ok">Received</span>' : i < cw ? '<span class="pill due">Pending</span>' : '<span class="pill wait">Upcoming</span>'}</td></tr>`).join('');
     return `<div class="scroll"><table><thead><tr><th>Week</th><th>Round</th><th>Date</th><th>Recipient</th><th>Amount</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   },
 
@@ -271,7 +278,7 @@ const views = {
 function myHand(name, cw){
   const d = S.data;
   const r = d.tracker.rows.find(x => x.name === name); if (!r) return '';
-  const missed = r.cells.filter((v,i) => i <= cw && String(v).trim()==='').length;
+  const missed = r.cells.filter((v,i) => i < cw && String(v).trim()==='').length;
   const payouts = d.schedule.filter(p => p.recipient === name);
   return `<div class="grid2">
       <div class="stat"><b>${esc(r.balance)}</b><span>left to pay of ${esc(r.owed)}</span></div>
